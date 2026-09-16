@@ -51,8 +51,18 @@ def read_kexinit(host: str, port: int, timeout: float = 5.0):
 
 
 def probe_ssh(hostport: str, timeout: float = 5.0) -> List[Finding]:
-    host, _, port = hostport.partition(":")
-    port = int(port) if port else 22
+    from .ports import resolve_ports
+    host, ports, note = resolve_ports(hostport, "ssh", min(timeout, 2.0))
+    out: List[Finding] = []
+    for port in ports:
+        r = probe_ssh_port(host, port, timeout)
+        if note and port == ports[0]:
+            r.insert(0, Finding.info(r[0].target if r else "ssh://%s" % host, "port discovery", note))
+        out.extend(r)
+    return out
+
+
+def probe_ssh_port(host: str, port: int, timeout: float = 5.0) -> List[Finding]:
     target = "ssh://%s:%d" % (host, port)
     try:
         banner, lists = read_kexinit(host, port, timeout)

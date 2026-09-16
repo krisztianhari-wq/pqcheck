@@ -109,6 +109,12 @@ pqcheck gui                            # local web interface (what the desktop a
 
 Typing a URL or host name in the GUI switches the mode automatically (WEB / TLS / SSH).
 
+**No port given? The well-known ports are tried.** `pqcheck tls host` checks 443, 8443, 465 (SMTPS),
+993 (IMAPS), 995 (POP3S), 636 (LDAPS), 4443 and 9443 in parallel and probes every one that accepts a
+connection (up to four); `pqcheck ssh host` tries 22, 2222, 2200, 22222; `pqcheck web host` uses 443,
+then 8443. The report starts with a "port discovery" line listing what was tried and what was open.
+An explicit `host:port` disables discovery and probes only that port.
+
 ### Result history
 
 Every run is stored in a local SQLite database (`~/.pqcheck/history.db`, overridable with

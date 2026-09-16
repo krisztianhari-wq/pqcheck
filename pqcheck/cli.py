@@ -27,10 +27,10 @@ def main(argv=None):
     p.add_argument("paths", nargs="+")
     p.add_argument("--no-code", action="store_true", help="only look at container files, skip text grep")
 
-    p = sub.add_parser("tls", help="probe TLS servers for ML-KEM hybrid key exchange (host[:port], default 443)")
+    p = sub.add_parser("tls", help="probe TLS servers for ML-KEM hybrid key exchange (host[:port]; without port every open well-known TLS port is probed: 443, 8443, 465, 993, 995, 636, 4443, 9443)")
     p.add_argument("hosts", nargs="+")
 
-    p = sub.add_parser("ssh", help="read SSH server KEXINIT and grade kex/hostkey/cipher/MAC (host[:port], default 22)")
+    p = sub.add_parser("ssh", help="read SSH server KEXINIT and grade kex/hostkey/cipher/MAC (host[:port]; without port 22, 2222, 2200, 22222 are tried)")
     p.add_argument("hosts", nargs="+")
 
     p = sub.add_parser("web", help="check a website: TLS versions, forward secrecy, PQC groups, certificate chain, HSTS, third-party hosts")
