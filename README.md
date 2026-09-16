@@ -224,6 +224,11 @@ python3 -m unittest discover -s tests -v
 - NSA CNSA 2.0, BSI TR-02102, EU Coordinated Implementation Roadmap for PQC (2025)
 - draft-ietf-tls-ecdhe-mlkem, draft-ietf-tls-mlkem, draft-ietf-openpgp-pqc, RFC 8996
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md). The section for each version is copied into the GitHub release notes
+under "What's new", above the auto-generated commit list.
+
 ## License
 
 MIT
