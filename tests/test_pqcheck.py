@@ -60,9 +60,16 @@ class PemDerTests(unittest.TestCase):
         self.assertIn("PBE-SHA1-3DES", algos(f))
         self.assertEqual(worst(f), Verdict.WEAK)
 
-    def test_encrypted_pkcs8(self):
+    def test_encrypted_pkcs8_pbes1(self):
         f = analyze_file(os.path.join(FX, "rsa2048.pk8"))
         self.assertIn("PBE-MD5-DES", algos(f))
+        self.assertEqual(worst(f), Verdict.WEAK)
+
+    def test_encrypted_pkcs8_pbes2(self):
+        f = analyze_file(os.path.join(FX, "rsa2048_pbes2.pk8"))
+        self.assertIn("PBES2", algos(f))
+        self.assertIn("AES-256", algos(f))
+        self.assertEqual(worst(f), Verdict.SAFE)
 
     def test_dh_params(self):
         f = analyze_file(os.path.join(FX, "dh1024.pem"))

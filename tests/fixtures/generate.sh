@@ -8,12 +8,14 @@ openssl genrsa -out rsa2048.key 2048 2>/dev/null
 openssl req -new -x509 -key rsa2048.key -subj "/CN=rsa-test" -days 30 -out rsa2048.crt 2>/dev/null
 openssl ecparam -name prime256v1 -genkey -noout -out ec256.key
 openssl req -new -x509 -key ec256.key -subj "/CN=ec-test" -days 30 -sha256 -out ec256.crt 2>/dev/null
-openssl pkcs8 -topk8 -in rsa2048.key -out rsa2048.pk8 -passout pass:x
+# legacy PBES1 and modern PBES2 variants, pinned so LibreSSL and OpenSSL 3 produce the same thing
+openssl pkcs8 -topk8 -v1 PBE-MD5-DES -in rsa2048.key -out rsa2048.pk8 -passout pass:x
+openssl pkcs8 -topk8 -v2 aes-256-cbc -in rsa2048.key -out rsa2048_pbes2.pk8 -passout pass:x
 openssl x509 -in rsa2048.crt -outform DER -out rsa2048.der
 echo "secret data" > plain.txt
 openssl cms -encrypt -in plain.txt -out enveloped_rsa.p7m -outform DER -aes256 rsa2048.crt
 openssl cms -sign -in plain.txt -out signed.p7s -outform DER -signer ec256.crt -inkey ec256.key -nodetach
-openssl pkcs12 -export -in rsa2048.crt -inkey rsa2048.key -out bundle.p12 -passout pass:x
+openssl pkcs12 -export -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1 -in rsa2048.crt -inkey rsa2048.key -out bundle.p12 -passout pass:x
 openssl dhparam -out dh1024.pem 1024 2>/dev/null
 openssl enc -aes-256-cbc -pbkdf2 -in plain.txt -out plain.enc -pass pass:x
 rm -f id_ed25519 id_ed25519.pub id_rsa id_rsa.pub id_ecdsa id_ecdsa.pub
