@@ -255,8 +255,16 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, _serialize(findings))
 
 
-def serve(port: int = 8765, open_browser: bool = True, timeout: float = 5.0, verbose: bool = False) -> int:
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+def serve(port: int = 8765, open_browser: bool = True, timeout: float = 5.0, verbose: bool = False,
+          port_explicit: bool = False) -> int:
+    try:
+        httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    except OSError as e:
+        if port_explicit or port == 0:
+            print("pqcheck gui: cannot bind 127.0.0.1:%d (%s). Try --port 0 for a random free port." % (port, e.strerror), file=sys.stderr)
+            return 1
+        print("pqcheck gui: port %d is busy, picking a free one" % port, file=sys.stderr)
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     httpd.timeout_probe = timeout
     httpd.timeout = timeout
     httpd.verbose = verbose
