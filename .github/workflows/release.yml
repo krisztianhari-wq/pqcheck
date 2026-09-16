@@ -72,6 +72,7 @@ jobs:
     needs: [pyz, binaries]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with:
           path: assets
@@ -100,5 +101,16 @@ jobs:
           Verify downloads against `SHA256SUMS.txt`.
 
           MD
+          # append this version's section from CHANGELOG.md (feature list), then the auto-generated commit notes
+          VER="${TAG#v}"
+          awk -v ver="$VER" '
+            /^## \[/ { in_sec = ($0 ~ "^## \\[" ver "\\]") }
+            in_sec { print }
+          ' CHANGELOG.md > section.md
+          if [ -s section.md ]; then
+            { echo; echo "## What's new in $TAG"; echo; tail -n +2 section.md; echo; } >> notes.md
+          else
+            echo "::warning::CHANGELOG.md has no section for $VER"
+          fi
           gh release create "$TAG" assets/* --repo "$GITHUB_REPOSITORY" --title "pqcheck $TAG" --notes-file notes.md --generate-notes --verify-tag
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name'

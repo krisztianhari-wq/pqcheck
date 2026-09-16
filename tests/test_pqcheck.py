@@ -355,3 +355,11 @@ class BatchTests(unittest.TestCase):
         rows, errs = parse_list(TEMPLATE_CSV.encode(), "template.csv")
         self.assertEqual(len(rows), 7)
         self.assertFalse(errs)
+
+
+class ChangelogTests(unittest.TestCase):
+    def test_current_version_has_changelog_section(self):
+        import pqcheck, re
+        text = open(os.path.join(os.path.dirname(__file__), "..", "CHANGELOG.md"), encoding="utf-8").read()
+        self.assertIn("## [%s]" % pqcheck.__version__, text, "add a CHANGELOG.md section for %s before tagging" % pqcheck.__version__)
+        self.assertTrue(re.search(r"^## \[Unreleased\]", text, re.M))
