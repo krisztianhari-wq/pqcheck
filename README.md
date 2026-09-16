@@ -32,7 +32,29 @@ python3 -m pqcheck --json tls example.com > report.json
 python3 -m pqcheck --fail-on weak scan .        # CI: exit 1 WEAK-nél, 2 VULNERABLE-nél
 ```
 
-Telepítés parancsként (opcionális): `pip install -e .` → `pqcheck ...`
+## Futtatható változatok
+
+Három forma, választhatsz a célgép szerint:
+
+| Forma | Mit igényel | Hogyan |
+|---|---|---|
+| Natív bináris (`pqcheck`, `pqcheck.exe`) | semmit | a [Releases](https://github.com/krisztianhari-wq/pqcheck/releases) oldalról: Linux x86_64, macOS arm64/x86_64, Windows x86_64 |
+| Egyfájlos `pqcheck.pyz` | Python 3.9+ | `sh build_pyz.sh`, majd `./dist/pqcheck.pyz tls example.com` (vagy `python3 pqcheck.pyz ...`) |
+| Forrásból | Python 3.9+ | `python3 -m pqcheck ...` vagy `pip install -e .` → `pqcheck ...` |
+
+A binárisokat a `release.yml` workflow gyártja PyInstallerrel, amikor `v*` taget pusholsz:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+Helyi natív build (a saját platformodra):
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install pyinstaller
+printf 'import sys\nfrom pqcheck.cli import main\nsys.exit(main())\n' > build/entry.py
+.venv/bin/pyinstaller --onefile --name pqcheck --paths . --distpath dist --workpath build/pyi --specpath build build/entry.py
+```
 
 ## Mit ismer fel
 
