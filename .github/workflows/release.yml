@@ -15,22 +15,22 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - run: sh build_pyz.sh
+      - run: sh build_pyz.sh && mv dist/pqcheck.pyz dist/pqcheck-cli-any-python3.pyz
       - uses: actions/upload-artifact@v4
         with:
           name: pqcheck-pyz
-          path: dist/pqcheck.pyz
+          path: dist/pqcheck-cli-any-python3.pyz
 
   binaries:
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
-            asset: pqcheck-linux-x86_64
+            asset: pqcheck-cli-linux-x86_64
           - os: macos-latest
-            asset: pqcheck-macos-arm64
+            asset: pqcheck-cli-macos-arm64
           - os: windows-latest
-            asset: pqcheck-windows-x86_64.exe
+            asset: pqcheck-cli-windows-x86_64.exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -85,5 +85,20 @@ jobs:
         run: |
           set -e
           gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes 2>/dev/null || true
-          gh release create "$TAG" assets/* --repo "$GITHUB_REPOSITORY" --title "pqcheck $TAG" --generate-notes --verify-tag
+          cat > notes.md <<'MD'
+          ## Which file do I need?
+
+          | I want to… | Download | How to run |
+          |---|---|---|
+          | **double-click an app** on a Mac (Apple Silicon) | `PQCheck-Desktop-macos-arm64.zip` | unzip → `PQCheck.app` → Applications. First launch: see *Gatekeeper* in the README |
+          | **double-click an app** on Windows | `PQCheck-Desktop-windows-x86_64.exe` | run it; SmartScreen → *More info* → *Run anyway* |
+          | **double-click an app** on Linux | `PQCheck-Desktop-linux-x86_64` | `chmod +x`, run; opens the browser |
+          | use the **command line** | `pqcheck-cli-<os>-<arch>` | `./pqcheck-cli-macos-arm64 web https://example.com` |
+          | run it **with Python** (any OS) | `pqcheck-cli-any-python3.pyz` | `python3 pqcheck-cli-any-python3.pyz gui` |
+
+          The desktop apps and the CLI are the same program: the app simply starts `pqcheck gui`.
+          Verify downloads against `SHA256SUMS.txt`.
+
+          MD
+          gh release create "$TAG" assets/* --repo "$GITHUB_REPOSITORY" --title "pqcheck $TAG" --notes-file notes.md --generate-notes --verify-tag
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name'
