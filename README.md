@@ -29,11 +29,54 @@ interface in your browser (Yettel brand colours, Nostromo/MU-TH-UR terminal styl
 
 | Platform | Asset | Notes |
 |---|---|---|
-| macOS (Apple Silicon) | `PQCheck-Desktop-macos-arm64.zip` | unzip, drag `PQCheck.app` to Applications. First launch: right-click → Open, or run `xattr -dr com.apple.quarantine PQCheck.app` (the app is not notarized) |
-| Windows | `PQCheck-Desktop-windows-x86_64.exe` | windowed, no console. SmartScreen: "More info → Run anyway" (not code-signed) |
+| macOS (Apple Silicon) | `PQCheck-Desktop-macos-arm64.zip` | unzip, drag `PQCheck.app` to Applications. First launch is blocked by Gatekeeper, see the section below |
+| Windows | `PQCheck-Desktop-windows-x86_64.exe` | windowed, no console. SmartScreen warning on first run, see below |
 | Linux | `PQCheck-Desktop-linux-x86_64` | `chmod +x`, then run |
 
 Quit the app from the Dock / task bar; it is a background server with no window of its own.
+
+### macOS says "PQCheck is damaged and can't be opened. You should move it to the Trash."
+
+This is Gatekeeper, not a broken download. The app is not signed with an Apple Developer ID and not
+notarized, and macOS 15 (Sequoia) no longer offers the right-click → Open shortcut for such apps.
+The message appears for every unsigned app downloaded with a browser. Fix it once per download:
+
+1. Click **Cancel** (do not move it to the Trash). If you already did, drag it back out of the Trash.
+2. Unzip, then remove the quarantine flag from the whole bundle (note the `-r`, the flag is on every file inside):
+
+   ```bash
+   xattr -dr com.apple.quarantine ~/Downloads/PQCheck.app
+   ```
+
+3. Move it to Applications and start it:
+
+   ```bash
+   mv ~/Downloads/PQCheck.app /Applications/ && open /Applications/PQCheck.app
+   ```
+
+Alternative without Terminal: try to open the app, click **Done**, then go to
+**System Settings → Privacy & Security**, scroll down to the "PQCheck was blocked" line and click
+**Open Anyway**, then confirm with Touch ID / password.
+
+If it still refuses, the ad-hoc signature inside the zip may have been invalidated by the unzip tool;
+re-sign it locally and try again:
+
+```bash
+codesign --force --deep --sign - /Applications/PQCheck.app && open /Applications/PQCheck.app
+```
+
+Verify the download first if you like: `shasum -a 256 ~/Downloads/PQCheck-Desktop-macos-arm64.zip`
+must match the line in `SHA256SUMS.txt` on the release page.
+
+Permanent fix for company-wide rollout: sign with a Developer ID certificate and notarize in the
+release workflow (needs an Apple Developer Program membership). Until then the steps above are required
+once per downloaded copy; an app built locally with `sh build_app.sh` is never quarantined.
+
+### Windows says "Windows protected your PC"
+
+SmartScreen shows this for executables without a code-signing certificate. Click **More info**, then
+**Run anyway**. Some corporate AV policies block unsigned executables entirely; in that case use the
+Python-based `pqcheck.pyz` (`py pqcheck.pyz gui`) or ask IT to allow-list the SHA-256 from `SHA256SUMS.txt`.
 
 ## Command line
 
