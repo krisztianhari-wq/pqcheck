@@ -68,6 +68,16 @@ button:disabled{background:var(--grey);cursor:wait}
 .ghost,a.btn{background:transparent;color:var(--lime);border:1px solid var(--lime);padding:6px 14px;font:inherit;text-transform:uppercase;text-decoration:none;font-size:12px;cursor:pointer}
 .ghost:hover,a.btn:hover{background:rgba(180,255,0,.12)}
 tr.click{cursor:pointer}tr.click:hover td{background:rgba(180,255,0,.06)}
+.info{width:30px;height:30px;padding:0;border-radius:50%;font-weight:bold;font-family:Georgia,serif;text-transform:none;font-size:16px}
+.modal{position:fixed;inset:0;background:rgba(0,10,20,.8);z-index:20;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal[hidden]{display:none}
+.modal-box{background:var(--navy);border:2px solid var(--lime);box-shadow:0 0 24px rgba(180,255,0,.3);max-width:860px;width:100%;max-height:90vh;overflow:auto}
+.modal-head{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--lime);color:var(--ice)}
+.modal-body{padding:14px;text-transform:none;letter-spacing:0;font-size:13px;color:var(--pale)}
+.modal-body p{margin:8px 0}.modal-body code{color:var(--lime)}.modal-body b{color:var(--lime)}
+.modal-body pre{background:var(--navy2);border:1px solid var(--grey);padding:10px;color:var(--ice);overflow:auto}
+table.rules td,table.rules th{font-size:12px;text-transform:none;letter-spacing:0}
+.rows-ok{color:var(--lime)}.rows-err{color:var(--amber)}
 .drop{margin-top:10px;border:1px dashed var(--grey);padding:14px;text-align:center;color:var(--grey);font-size:12px;cursor:pointer}
 .drop.over{border-color:var(--lime);color:var(--lime);background:rgba(180,255,0,.06)}
 .hint{color:var(--grey);font-size:11px;margin-top:8px}
@@ -120,6 +130,13 @@ a{color:var(--ice)}
     <button id="run" type="submit">Run</button>
   </form>
   <div class="drop" id="drop">Or drop encrypted files here (they never leave this machine)</div>
+  <div class="row" style="margin-top:10px;align-items:center">
+    <button id="import" class="ghost" type="button">Import target list (CSV / XLSX)</button>
+    <button id="import-info" class="ghost info" type="button" title="File rules">i</button>
+    <a id="tpl" class="ghost btn" href="/template.csv" download="pqcheck-targets.csv">Download template</a>
+    <span class="hint" id="import-status" style="margin:0"></span>
+  </div>
+  <input type="file" id="import-file" accept=".csv,.tsv,.txt,.xlsx" style="display:none">
   <div class="hint">Server listens on 127.0.0.1 only. For TLS/SSH the key exchange is the "harvest now, decrypt later" exposure; certificate / host-key signatures only matter at connection time.</div>
 </div>
 
@@ -138,6 +155,31 @@ a{color:var(--ice)}
     <a id="exp-json" class="ghost btn" href="#" download="pqcheck-history.json">Export JSON</a>
   </div>
   <div id="hist"></div>
+</div>
+<div class="modal" id="modal" hidden>
+  <div class="modal-box">
+    <div class="modal-head"><span>■ Target list file rules</span><button class="ghost" id="modal-close" type="button">Close</button></div>
+    <div class="modal-body">
+      <p><b>Formats:</b> CSV (comma, semicolon or tab separated), TXT (one target per line) or Excel <b>.xlsx</b> (first sheet). UTF-8. Lines starting with <code>#</code> are comments. Duplicates are dropped.</p>
+      <p><b>Columns</b> (header row optional, any order, case-insensitive):</p>
+      <table class="rules">
+        <tr><th>Column</th><th>Accepted names</th><th>Values</th></tr>
+        <tr><td>Purpose of the check</td><td><code>kind</code>, <code>type</code>, <code>check</code>, <code>purpose</code></td><td><code>tls</code> – TLS endpoint (key exchange, certificate) · <code>ssh</code> – SSH server · <code>web</code> – whole website (TLS versions, forward secrecy, chain, HSTS, third parties) · <code>file</code> / <code>scan</code> – local path. <b>Empty = auto-detect</b>: URL → web, port 22 → ssh, otherwise tls.</td></tr>
+        <tr><td>IP or domain</td><td><code>host</code>, <code>target</code>, <code>ip</code>, <code>domain</code>, <code>address</code>, <code>url</code></td><td>Host name (<code>mail.example.com</code>), IPv4 (<code>10.0.0.12</code>), full URL for web checks (<code>https://portal.example.com</code>). <code>host:port</code> in one cell is also accepted.</td></tr>
+        <tr><td>Port</td><td><code>port</code></td><td>1–65535, optional. <b>Empty = well-known ports are tried</b>: TLS 443, 8443, 465, 993, 995, 636, 4443, 9443 · SSH 22, 2222, 2200, 22222 · web 443, 8443.</td></tr>
+        <tr><td>Note</td><td><code>note</code>, <code>comment</code></td><td>Free text, kept in the report.</td></tr>
+      </table>
+      <p><b>Without a header row:</b> 1 column = target · 2 columns = <code>target,port</code> or <code>kind,target</code> · 3 columns = <code>kind,target,port</code>.</p>
+      <pre>kind,host,port,note
+tls,www.example.com,,public website endpoint
+tls,mail.example.com,465,SMTP submission
+ssh,bastion.example.com,22,jump host
+web,https://portal.example.com,,full website check
+tls,10.0.0.12,8443,appliance management UI
+,intranet.example.com,,auto-detected</pre>
+      <p>Every row becomes one probe; the whole list is stored as a single <b>batch</b> run in History. Invalid rows are listed with their line number and skipped. Large lists take a few seconds per host.</p>
+    </div>
+  </div>
 </div>
 <div class="foot"></div>
 <div class="footnote"><span>Yettel · Security</span><span>pqcheck __VERSION__ · <a href="https://github.com/krisztianhari-wq/pqcheck">github.com/krisztianhari-wq/pqcheck</a></span></div>
@@ -203,6 +245,23 @@ async function exportAs(fmt,a){const r=await fetch('/api/export?format='+fmt,{me
 document.getElementById('exp-csv').addEventListener('click',async function(e){if(this.dataset.ready){this.dataset.ready='';return}e.preventDefault();await exportAs('csv',this);this.dataset.ready='1';this.click()});
 document.getElementById('exp-json').addEventListener('click',async function(e){if(this.dataset.ready){this.dataset.ready='';return}e.preventDefault();await exportAs('json',this);this.dataset.ready='1';this.click()});
 api('/api/history',{limit:0}).then(()=>{}).catch(()=>{});document.getElementById('dbpath').textContent="__DBPATH__";showRuns();
+const modal=document.getElementById('modal');
+document.getElementById('import-info').onclick=()=>{modal.hidden=false};
+document.getElementById('modal-close').onclick=()=>{modal.hidden=true};
+modal.addEventListener('click',e=>{if(e.target===modal)modal.hidden=true});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')modal.hidden=true});
+const impFile=document.getElementById('import-file'),impStatus=document.getElementById('import-status');
+document.getElementById('import').onclick=()=>impFile.click();
+impFile.onchange=async()=>{const f=impFile.files[0];if(!f)return;impFile.value='';
+  run.disabled=true;impStatus.textContent='parsing '+f.name+' …';type('MOTHER: READING TARGET LIST '+f.name.toUpperCase()+' …');out.innerHTML='';sum.innerHTML='';
+  try{const r=await fetch('/api/batch',{method:'POST',headers:{'X-Token':TOKEN,'X-Filename':encodeURIComponent(f.name)},body:await f.arrayBuffer()});
+    if(!r.ok){type('MOTHER: ERROR '+r.status+' · '+(await r.text()));impStatus.textContent='';return}
+    const d=await r.json();
+    impStatus.innerHTML=`<span class="rows-ok">${d.rows.length} targets</span>`+(d.errors.length?` · <span class="rows-err">${d.errors.length} rows skipped</span>`:'');
+    render(d);
+    if(d.errors.length){const div=document.createElement('div');div.className='target';div.innerHTML='<div class="head"><span class="name">&gt; skipped rows</span></div><table><tr><th>Line</th><th>Content</th><th>Reason</th></tr>'+d.errors.map(e=>`<tr><td>${e.line}</td><td class="loc">${esc(e.host||'')}${e.port?':'+e.port:''}</td><td class="note">${esc(e.error)}</td></tr>`).join('')+'</table>';out.prepend(div)}
+    type(`MOTHER: BATCH OF ${d.rows.length} TARGETS COMPLETE · ${d.findings.length} FINDINGS · OVERALL ${d.overall||'—'}`);showRuns();
+  }catch(e){type('MOTHER: UNABLE TO COMPLY · '+e)}finally{run.disabled=false}};
 drop.onclick=()=>{const i=document.createElement('input');i.type='file';i.multiple=true;i.onchange=()=>drop.dispatchEvent(new DragEvent('drop',{dataTransfer:(()=>{const d=new DataTransfer();[...i.files].forEach(f=>d.items.add(f));return d})()}));i.click()};
 </script></body></html>
 """
@@ -284,7 +343,11 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if self.path.split("?")[0] != "/":
+        path = self.path.split("?")[0]
+        if path == "/template.csv":
+            from .batch import TEMPLATE_CSV
+            return self._send(200, TEMPLATE_CSV.encode(), "text/csv")
+        if path != "/":
             return self._send(404, b"not found", "text/plain")
         page = (HTML.replace("__TOKEN__", TOKEN).replace("__VERSION__", __version__).replace("__LOGO__", LOGO_SVG)
                 .replace("__DBPATH__", self.server.store.path.replace("\\", "/") if self.server.store else "off"))
@@ -321,6 +384,27 @@ class Handler(BaseHTTPRequestHandler):
                 fmt = "json" if "format=json" in self.path else "csv"
                 data = st.export(fmt) if st else ""
                 return self._send(200, data.encode("utf-8"), "application/json" if fmt == "json" else "text/csv")
+            elif path == "/api/batch":
+                from urllib.parse import unquote
+                from .batch import parse_list, run_rows
+                name = os.path.basename(unquote(self.headers.get("X-Filename", "list")))
+                rows, errors = parse_list(body, name)
+                if not rows:
+                    return self._send(400, ("no usable rows in %s (%d skipped)" % (name, len(errors))).encode(), "text/plain")
+                findings = []
+                for row, fs in run_rows(rows[:200], self.server.timeout):
+                    if row.note:
+                        for f in fs:
+                            if f.location == "headline":
+                                f.note += " | note: " + row.note
+                    findings.extend(fs)
+                if st:
+                    with self.server.lock:
+                        st.save_run("batch", [name] + [r.target for r in rows[:200]], findings)
+                data = json.loads(_serialize(findings))
+                data["rows"] = [r.as_dict() for r in rows[:200]]
+                data["errors"] = [e.as_dict() for e in errors]
+                return self._send(200, json.dumps(data).encode())
             elif path == "/api/upload":
                 from urllib.parse import unquote
                 from .formats import analyze_bytes

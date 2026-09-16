@@ -36,6 +36,11 @@ def main(argv=None):
     p = sub.add_parser("web", help="check a website: TLS versions, forward secrecy, PQC groups, certificate chain, HSTS, third-party hosts")
     p.add_argument("urls", nargs="+")
 
+    p = sub.add_parser("batch", help="probe every target listed in a CSV / TSV / TXT / XLSX file (columns: kind, host, port, note; see --template)")
+    p.add_argument("files", nargs="*")
+    p.add_argument("--template", action="store_true", help="print a template CSV and exit")
+    p.add_argument("--limit", type=int, default=200, help="max rows to process (default 200)")
+
     p = sub.add_parser("history", help="list recorded runs (or show one with --show ID)")
     p.add_argument("--limit", type=int, default=30)
     p.add_argument("--target", help="filter runs by target substring")
@@ -106,7 +111,30 @@ def main(argv=None):
             st.close()
     findings = []
     targets = []
-    if args.cmd == "file":
+    if args.cmd == "batch":
+        from .batch import parse_list, run_rows, TEMPLATE_CSV
+        if args.template or not args.files:
+            sys.stdout.write(TEMPLATE_CSV)
+            return 0
+        for fn in args.files:
+            try:
+                with open(fn, "rb") as fh:
+                    data = fh.read()
+            except OSError as e:
+                print("cannot read %s: %s" % (fn, e), file=sys.stderr)
+                return 1
+            rows, errors = parse_list(data, fn)
+            for e in errors:
+                print("%s line %d skipped: %s (%s)" % (fn, e.line, e.error, e.host), file=sys.stderr)
+            if not rows:
+                print("%s: no usable rows" % fn, file=sys.stderr)
+                continue
+            print("%s: %d target(s)%s" % (fn, min(len(rows), args.limit), "" if len(rows) <= args.limit else " (limited from %d)" % len(rows)), file=sys.stderr)
+            targets.append(fn)
+            for row, fs in run_rows(rows[:args.limit], args.timeout):
+                targets.append(row.target)
+                findings.extend(fs)
+    elif args.cmd == "file":
         from .formats import analyze_file
         targets = args.paths
         for pth in args.paths:

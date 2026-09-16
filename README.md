@@ -115,6 +115,26 @@ connection (up to four); `pqcheck ssh host` tries 22, 2222, 2200, 22222; `pqchec
 then 8443. The report starts with a "port discovery" line listing what was tried and what was open.
 An explicit `host:port` disables discovery and probes only that port.
 
+### Bulk target lists (CSV / XLSX)
+
+```bash
+pqcheck batch --template > targets.csv     # header: kind,host,port,note
+pqcheck batch targets.csv hosts.xlsx       # every row becomes one probe; saved as one "batch" run
+```
+
+Rules (also shown behind the ⓘ button next to *Import target list* in the GUI):
+
+| Column | Accepted header names | Values |
+|---|---|---|
+| purpose of the check | `kind`, `type`, `check`, `purpose` | `tls`, `ssh`, `web`, `file`, `scan`; empty = auto-detect (URL → web, port 22 → ssh, otherwise tls) |
+| IP or domain | `host`, `target`, `ip`, `domain`, `address`, `url` | host name, IPv4, full URL for web checks; `host:port` in one cell also works |
+| port | `port` | 1–65535, optional; empty = well-known ports are tried |
+| note | `note`, `comment` | free text, kept in the report |
+
+CSV may be comma, semicolon or tab separated; `.xlsx` uses the first sheet; `#` starts a comment;
+duplicates are dropped. Without a header row: 1 column = target, 2 = `target,port` or `kind,target`,
+3 = `kind,target,port`. Invalid rows are reported with their line number and skipped.
+
 ### Result history
 
 Every run is stored in a local SQLite database (`~/.pqcheck/history.db`, overridable with
