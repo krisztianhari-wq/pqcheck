@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.venv/
+# generated test material (contains throwaway private keys) - run tests/fixtures/generate.sh
+tests/fixtures/*
+!tests/fixtures/generate.sh
+!tests/fixtures/sshd_config
+!tests/fixtures/app.py
