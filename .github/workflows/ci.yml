@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Generate fixtures
+        if: runner.os != 'Windows'
+        run: sh tests/fixtures/generate.sh
+      - name: Run tests
+        if: runner.os != 'Windows'
+        run: python -m unittest discover -s tests -v
+      - name: Smoke test (Windows, no fixture toolchain)
+        if: runner.os == 'Windows'
+        run: |
+          python -m pqcheck --version
+          python -m pqcheck --no-color scan tests/fixtures/sshd_config tests/fixtures/app.py --fail-on never
