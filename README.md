@@ -29,9 +29,9 @@ interface in your browser (Yettel brand colours, Nostromo/MU-TH-UR terminal styl
 
 | Platform | Asset | Notes |
 |---|---|---|
-| macOS (Apple Silicon) | `PQCheck-macos-arm64.zip` | unzip, drag `PQCheck.app` to Applications. First launch: right-click → Open, or run `xattr -dr com.apple.quarantine PQCheck.app` (the app is not notarized) |
-| Windows | `PQCheck-windows-x86_64.exe` | windowed, no console. SmartScreen: "More info → Run anyway" (not code-signed) |
-| Linux | `PQCheck-linux-x86_64` | `chmod +x`, then run |
+| macOS (Apple Silicon) | `PQCheck-Desktop-macos-arm64.zip` | unzip, drag `PQCheck.app` to Applications. First launch: right-click → Open, or run `xattr -dr com.apple.quarantine PQCheck.app` (the app is not notarized) |
+| Windows | `PQCheck-Desktop-windows-x86_64.exe` | windowed, no console. SmartScreen: "More info → Run anyway" (not code-signed) |
+| Linux | `PQCheck-Desktop-linux-x86_64` | `chmod +x`, then run |
 
 Quit the app from the Dock / task bar; it is a background server with no window of its own.
 
