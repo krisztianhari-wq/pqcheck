@@ -116,7 +116,7 @@ a{color:var(--ice)}
       <option value="ssh">SSH · host[:port]</option>
       <option value="web">WEB · https://url</option>
     </select>
-    <input id="target" type="text" placeholder="/path/to/file.pem   or   example.com:443   or   https://www.example.com  (several: space-separated)" autofocus>
+    <input id="target" type="text" placeholder="/path/to/file.pem   or   example.com   or   https://www.example.com   (no port = well-known ports are tried)" autofocus>
     <button id="run" type="submit">Run</button>
   </form>
   <div class="drop" id="drop">Or drop encrypted files here (they never leave this machine)</div>

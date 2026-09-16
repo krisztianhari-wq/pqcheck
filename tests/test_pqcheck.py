@@ -283,3 +283,36 @@ class GuiDetectTests(unittest.TestCase):
         self.assertEqual(detect_command("file", os.path.join(FX, "rsa2048.crt")), "file")
         self.assertEqual(detect_command("file", "missing.example.pem"), "file")
         self.assertEqual(detect_command("tls", "anything"), "tls")
+
+
+class PortDiscoveryTests(unittest.TestCase):
+    def test_split_hostport(self):
+        from pqcheck.ports import split_hostport
+        self.assertEqual(split_hostport("example.com", "tls"), ("example.com", None))
+        self.assertEqual(split_hostport("example.com:8443", "tls"), ("example.com", 8443))
+        self.assertEqual(split_hostport("[::1]:2222", "ssh"), ("::1", 2222))
+        self.assertEqual(split_hostport("[::1]", "ssh"), ("::1", None))
+
+    def test_open_ports_with_local_listener(self):
+        import socket
+        from pqcheck.ports import open_ports, resolve_ports
+        srv = socket.socket(); srv.bind(("127.0.0.1", 0)); srv.listen(1)
+        port = srv.getsockname()[1]
+        closed = socket.socket(); closed.bind(("127.0.0.1", 0)); dead = closed.getsockname()[1]; closed.close()
+        try:
+            self.assertEqual(open_ports("127.0.0.1", [dead, port], timeout=1.0), [port])
+            host, ports, note = resolve_ports("127.0.0.1:%d" % port, "tls")
+            self.assertEqual((host, ports, note), ("127.0.0.1", [port], None))
+        finally:
+            srv.close()
+
+    def test_resolve_ports_none_open_falls_back_to_default(self):
+        from pqcheck import ports as P
+        saved = P.WELL_KNOWN["ssh"]
+        P.WELL_KNOWN["ssh"] = [1, 2]          # nothing listens there
+        try:
+            host, found, note = P.resolve_ports("127.0.0.1", "ssh", timeout=0.5)
+            self.assertEqual(found, [22])
+            self.assertIn("no well-known SSH port answered", note)
+        finally:
+            P.WELL_KNOWN["ssh"] = saved

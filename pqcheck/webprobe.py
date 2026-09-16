@@ -10,7 +10,7 @@ from urllib.parse import urlsplit, urljoin
 
 from .knowledge import Verdict, TLS_GROUPS, TLS_PQC_PROBE_GROUPS, TLS_CLASSICAL_PROBE_GROUPS
 from .report import Finding, worst
-from .tlsprobe import probe_tls, probe_groups, legacy_handshake
+from .tlsprobe import probe_tls_port, probe_groups, legacy_handshake
 from .formats import analyze_der
 
 # cipher id -> (name, key exchange family, symmetric)
@@ -69,8 +69,16 @@ def _http(url: str, timeout: float, insecure: bool = False):
 
 
 def probe_web(url: str, timeout: float = 5.0, third_party_limit: int = 8) -> List[Finding]:
+    from .ports import resolve_ports, split_hostport
+    port_note = None
     if "://" not in url:
-        url = "https://" + url
+        bare_host, bare_port = split_hostport(url.split("/")[0], "web")
+        if bare_port is None:
+            host_, ports, port_note = resolve_ports(bare_host, "web", min(timeout, 2.0))
+            port_ = ports[0]
+            url = "https://%s%s%s" % (bare_host, "" if port_ == 443 else ":%d" % port_, "/" + url.partition("/")[2] if "/" in url else "/")
+        else:
+            url = "https://" + url
     u = urlsplit(url)
     host = u.hostname or ""
     port = u.port or (443 if u.scheme == "https" else 80)
@@ -78,12 +86,14 @@ def probe_web(url: str, timeout: float = 5.0, third_party_limit: int = 8) -> Lis
     findings: List[Finding] = []
     if not host:
         return [Finding.info(target, "URL", "cannot parse URL", Verdict.UNKNOWN)]
+    if port_note:
+        findings.append(Finding.info(target, "port discovery", port_note))
     if u.scheme != "https":
         findings.append(Finding.info(target, "scheme", "URL is plain HTTP; checking the HTTPS endpoint on the same host", Verdict.WEAK))
         port = 443
 
     # 1. TLS 1.3 groups + leaf cert (reuses probe_tls, drop its headline lines)
-    tls = probe_tls("%s:%d" % (host, port), timeout)
+    tls = probe_tls_port(host, port, timeout)
     tls_err = [f for f in tls if f.location == "TLS" and "cannot probe" in f.note]
     if tls_err:
         return [Finding.info(target, "TLS", tls_err[0].note, Verdict.UNKNOWN)]
