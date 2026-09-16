@@ -73,6 +73,17 @@ class PemDerTests(unittest.TestCase):
 
     def test_dh_params(self):
         f = analyze_file(os.path.join(FX, "dh1024.pem"))
+        self.assertTrue(by_algo(f, "DH"), [x.algorithm + ":" + x.note for x in f])
+        self.assertEqual(by_algo(f, "DH")[0].bits, 1024)
+
+    def test_dh_params_x942_label(self):
+        # X9.42 style: SEQUENCE { p, g, q } with a dotted PEM label
+        p = b"\x02\x81\x81\x00" + b"\xff" * 128
+        body = p + b"\x02\x01\x02" + b"\x02\x02\x7f\xff"
+        der = b"\x30\x81" + bytes([len(body)]) + body
+        import base64
+        pem = b"-----BEGIN X9.42 DH PARAMETERS-----\n" + base64.encodebytes(der) + b"-----END X9.42 DH PARAMETERS-----\n"
+        f = analyze_bytes("t", pem)
         self.assertEqual(by_algo(f, "DH")[0].bits, 1024)
 
     def test_pqc_oid_in_spki(self):
