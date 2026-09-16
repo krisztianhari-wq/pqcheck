@@ -316,3 +316,42 @@ class PortDiscoveryTests(unittest.TestCase):
             self.assertIn("no well-known SSH port answered", note)
         finally:
             P.WELL_KNOWN["ssh"] = saved
+
+
+class BatchTests(unittest.TestCase):
+    def test_csv_with_header(self):
+        from pqcheck.batch import parse_list
+        rows, errs = parse_list(b"kind;host;port;note\ntls;www.example.com;;x\nssh;10.0.0.5;;\nweb;https://a.example.com;;\n;b.example.com;8443;\n;c.example.com;22;\nbad;d.example.com;;\ntls;e.example.com;99999;\n", "list.csv")
+        self.assertEqual([r.target for r in rows], ["www.example.com", "10.0.0.5", "https://a.example.com", "b.example.com:8443", "c.example.com:22"])
+        self.assertEqual([r.kind for r in rows], ["tls", "ssh", "web", "tls", "ssh"])
+        self.assertEqual([e.error.split(" ")[0] for e in errs], ["unknown", "invalid"])
+
+    def test_headerless_variants(self):
+        from pqcheck.batch import parse_list
+        rows, errs = parse_list(b"# comment\nexample.com\nexample.org,8443\nssh,bastion.example.com\nweb,https://x.example.com,\nexample.com\n", "hosts.txt")
+        self.assertEqual([(r.kind, r.target) for r in rows],
+                         [("tls", "example.com"), ("tls", "example.org:8443"), ("ssh", "bastion.example.com"), ("web", "https://x.example.com")])
+        self.assertFalse(errs)
+
+    def test_xlsx(self):
+        import zipfile, io
+        from pqcheck.batch import parse_list
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("xl/workbook.xml", '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>')
+            z.writestr("xl/_rels/workbook.xml.rels", '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="x" Target="worksheets/sheet1.xml"/></Relationships>')
+            z.writestr("xl/sharedStrings.xml", '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><si><t>host</t></si><si><t>port</t></si><si><t>example.com</t></si><si><t>kind</t></si><si><t>ssh</t></si></sst>')
+            z.writestr("xl/worksheets/sheet1.xml", '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
+                       '<row r="1"><c r="A1" t="s"><v>3</v></c><c r="B1" t="s"><v>0</v></c><c r="C1" t="s"><v>1</v></c></row>'
+                       '<row r="2"><c r="A2" t="s"><v>4</v></c><c r="B2" t="s"><v>2</v></c><c r="C2"><v>2222</v></c></row>'
+                       '<row r="3"><c r="B3" t="inlineStr"><is><t>10.1.2.3</t></is></c><c r="C3"><v>8443.0</v></c></row>'
+                       '</sheetData></worksheet>')
+        rows, errs = parse_list(buf.getvalue(), "hosts.xlsx")
+        self.assertEqual([(r.kind, r.target) for r in rows], [("ssh", "example.com:2222"), ("tls", "10.1.2.3:8443")])
+        self.assertFalse(errs)
+
+    def test_template_parses(self):
+        from pqcheck.batch import parse_list, TEMPLATE_CSV
+        rows, errs = parse_list(TEMPLATE_CSV.encode(), "template.csv")
+        self.assertEqual(len(rows), 7)
+        self.assertFalse(errs)
