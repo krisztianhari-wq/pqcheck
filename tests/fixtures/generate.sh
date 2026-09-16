@@ -3,13 +3,18 @@
 # Needs: openssl (LibreSSL is fine), ssh-keygen, zip. Run from the repo root:
 #   sh tests/fixtures/generate.sh
 set -e
+[ -n "$PQ_DEBUG" ] && set -x
+echo "openssl: $(openssl version)"
 cd "$(dirname "$0")"
 openssl genrsa -out rsa2048.key 2048 2>/dev/null
 openssl req -new -x509 -key rsa2048.key -subj "/CN=rsa-test" -days 30 -out rsa2048.crt 2>/dev/null
 openssl ecparam -name prime256v1 -genkey -noout -out ec256.key
 openssl req -new -x509 -key ec256.key -subj "/CN=ec-test" -days 30 -sha256 -out ec256.crt 2>/dev/null
 # legacy PBES1 and modern PBES2 variants, pinned so LibreSSL and OpenSSL 3 produce the same thing
-openssl pkcs8 -topk8 -v1 PBE-MD5-DES -in rsa2048.key -out rsa2048.pk8 -passout pass:x
+# single DES lives in the OpenSSL 3 legacy provider; fall back to SHA1+3DES (also PBES1) if unavailable
+openssl pkcs8 -topk8 -v1 PBE-MD5-DES -in rsa2048.key -out rsa2048.pk8 -passout pass:x 2>/dev/null \
+  || openssl pkcs8 -topk8 -v1 PBE-MD5-DES -provider legacy -provider default -in rsa2048.key -out rsa2048.pk8 -passout pass:x 2>/dev/null \
+  || openssl pkcs8 -topk8 -v1 PBE-SHA1-3DES -in rsa2048.key -out rsa2048.pk8 -passout pass:x
 openssl pkcs8 -topk8 -v2 aes-256-cbc -in rsa2048.key -out rsa2048_pbes2.pk8 -passout pass:x
 openssl x509 -in rsa2048.crt -outform DER -out rsa2048.der
 echo "secret data" > plain.txt

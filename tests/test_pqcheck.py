@@ -62,7 +62,7 @@ class PemDerTests(unittest.TestCase):
 
     def test_encrypted_pkcs8_pbes1(self):
         f = analyze_file(os.path.join(FX, "rsa2048.pk8"))
-        self.assertIn("PBE-MD5-DES", algos(f))
+        self.assertTrue(any(a.startswith("PBE-") for a in algos(f)), algos(f))   # PBE-MD5-DES or PBE-SHA1-3DES
         self.assertEqual(worst(f), Verdict.WEAK)
 
     def test_encrypted_pkcs8_pbes2(self):
