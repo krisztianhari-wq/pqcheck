@@ -28,9 +28,27 @@ python3 -m pqcheck file titkos.gpg tanusitvany.pem bundle.p12 archiv.zip
 python3 -m pqcheck scan ~/projekt              # rekurzív: konténerfájlok + algoritmusnevek kódban/configban
 python3 -m pqcheck tls example.com api.ceg.hu:8443
 python3 -m pqcheck ssh bastion.ceg.hu
+python3 -m pqcheck web https://www.example.com  # teljes weboldal-ellenőrzés (lásd lent)
 python3 -m pqcheck --json tls example.com > report.json
 python3 -m pqcheck --fail-on weak scan .        # CI: exit 1 WEAK-nél, 2 VULNERABLE-nél
 ```
+
+### Eredmények gyűjtése
+
+Minden futás automatikusan egy helyi SQLite-adatbázisba kerül (`~/.pqcheck/history.db`, vagy a
+`PQCHECK_DB` környezeti változó / `--db` kapcsoló szerinti útvonal). Kikapcsolás: `--no-save`.
+
+```bash
+python3 -m pqcheck history                     # futások listája
+python3 -m pqcheck history --target yettel     # szűrés célra
+python3 -m pqcheck history --show 12           # egy futás találatai
+python3 -m pqcheck history --inventory         # célonként a legutóbbi verdikt (leltár-nézet)
+python3 -m pqcheck export -o findings.csv      # minden találat CSV-ben (--format json is)
+python3 -m pqcheck export --run 12 --format json
+```
+
+A GUI Előzmények-panelje ugyanezt mutatja: futások, célonkénti leltár, kattintásra visszatölthető
+eredmény, CSV/JSON export.
 
 ## Grafikus felület
 
@@ -39,7 +57,7 @@ python3 -m pqcheck gui          # megnyitja: http://127.0.0.1:8765/
 ```
 
 Helyi webes felület Yettel-arculattal, a Nostromo/MU-TH-UR terminálok stílusában (lime "foszfor" navy CRT-n,
-scanline, monospace). Fájl-útvonal, könyvtár, TLS/SSH host megadható, titkosított fájlok drag&drop-pal is
+scanline, monospace). Fájl-útvonal, könyvtár, TLS/SSH host és weboldal-URL megadható, titkosított fájlok drag&drop-pal is
 elemezhetők; a fájl nem hagyja el a gépet. A szerver csak a 127.0.0.1-en hallgat, és minden API-hívás
 oldalba ágyazott véletlen tokent igényel, így más weboldal nem tudja meghívni.
 
@@ -88,6 +106,17 @@ szerver HelloRetryRequest-tel elárulja, mely csoportokat támogatja: X25519MLKE
 SecP256r1MLKEM768, SecP384r1MLKEM1024, tiszta ML-KEM, Kyber draft. Jelenti a szerver
 preferenciáját, a klasszikus fallbackot, a levéltanúsítvány algoritmusát, és külön verdiktet ad a
 kulcscserére (harvest-now-decrypt-later kitettség) és a hitelesítésre.
+
+**Weboldal (`web`)** – URL-ből kiindulva a teljes HTTPS-oldal:
+- kulcscsere: ML-KEM hibrid csoportok (mint a `tls`), TLS 1.0/1.1/1.2/1.3 támogatás (1.0/1.1 = WEAK)
+- TLS 1.2 cipher-családok: **statikus RSA kulcscsere** (nincs forward secrecy – ez a "harvest now,
+  decrypt later" legrosszabb esete, mert egy feltört szerverkulccsal minden rögzített session visszafejthető),
+  ECDHE/DHE, gyenge suite-ok (3DES, RC4, NULL)
+- teljes **tanúsítványlánc** (leaf, közbülső, root) aláírás-algoritmusa és kulcsmérete – a TLS 1.2
+  kézfogásból nyersen kiolvasva, ahol a Certificate üzenet még titkosítatlan
+- HTTP-réteg: HSTS fejléc és max-age, http→https átirányítás
+- **harmadik felek**: a HTML-ből kiszedett külső script/CSS/kép/iframe hostok preferált TLS 1.3 csoportja
+  (max. 8 host), így látszik, hogy az oldal függőségei PQC-készek-e
 
 **SSH (`ssh`)** – kiolvassa a szerver nyílt KEXINIT-jét: kex (mlkem768x25519, sntrup761x25519
 hibridek), hostkey, cipher, MAC. Külön verdikt kulcscserére és host-hitelesítésre.

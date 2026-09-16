@@ -65,6 +65,9 @@ button{background:var(--lime);color:var(--navy);border:0;padding:9px 22px;font:i
  text-transform:uppercase}
 button:hover{background:var(--llime)}
 button:disabled{background:var(--grey);cursor:wait}
+.ghost,a.btn{background:transparent;color:var(--lime);border:1px solid var(--lime);padding:6px 14px;font:inherit;text-transform:uppercase;text-decoration:none;font-size:12px;cursor:pointer}
+.ghost:hover,a.btn:hover{background:rgba(180,255,0,.12)}
+tr.click{cursor:pointer}tr.click:hover td{background:rgba(180,255,0,.06)}
 .drop{margin-top:10px;border:1px dashed var(--grey);padding:14px;text-align:center;color:var(--grey);font-size:12px;cursor:pointer}
 .drop.over{border-color:var(--lime);color:var(--lime);background:rgba(180,255,0,.06)}
 .hint{color:var(--grey);font-size:11px;margin-top:8px}
@@ -111,6 +114,7 @@ a{color:var(--ice)}
       <option value="scan">SCAN · könyvtár</option>
       <option value="tls">TLS · host[:port]</option>
       <option value="ssh">SSH · host[:port]</option>
+      <option value="web">WEB · https://url</option>
     </select>
     <input id="target" type="text" placeholder="/path/to/file.pem  vagy  example.com:443  (több: szóközzel)" autofocus>
     <button id="run" type="submit">Futtat</button>
@@ -124,6 +128,16 @@ a{color:var(--ice)}
   <div id="log" class="cursor">MOTHER: WAITING FOR INPUT</div>
   <div id="summary"></div>
   <div id="out"></div>
+</div>
+<div class="panel">
+  <h2>Előzmények <span class="hint" style="margin:0 0 0 10px">minden futás mentve: <span id="dbpath" style="text-transform:none;letter-spacing:0"></span></span></h2>
+  <div class="row" style="margin-bottom:8px">
+    <button id="hist-runs" class="ghost">Futások</button>
+    <button id="hist-inv" class="ghost">Leltár célonként</button>
+    <a id="exp-csv" class="ghost btn" href="#" download="pqcheck-history.csv">Export CSV</a>
+    <a id="exp-json" class="ghost btn" href="#" download="pqcheck-history.json">Export JSON</a>
+  </div>
+  <div id="hist"></div>
 </div>
 <div class="foot"></div>
 <div class="footnote"><span>Yettel · Security</span><span>pqcheck __VERSION__ · <a href="https://github.com/krisztianhari-wq/pqcheck">github.com/krisztianhari-wq/pqcheck</a></span></div>
@@ -156,7 +170,7 @@ async function call(path,body,headers){
   run.disabled=true;type("MOTHER: PROCESSING REQUEST ...");out.innerHTML="";sum.innerHTML="";
   try{const r=await fetch(path,{method:'POST',headers:Object.assign({'X-Token':TOKEN},headers||{}),body});
     if(!r.ok){type("MOTHER: ERROR "+r.status+" · "+(await r.text()));return}
-    render(await r.json());
+    render(await r.json());showRuns();
   }catch(e){type("MOTHER: UNABLE TO COMPLY · "+e)}finally{run.disabled=false}
 }
 run.onclick=()=>{if(run.disabled)return;const t=target.value.trim();if(!t){type("MOTHER: SPECIFY TARGET");return}
@@ -170,8 +184,23 @@ drop.addEventListener('drop',async e=>{
   const all=[];run.disabled=true;type("MOTHER: RECEIVING "+files.length+" FILE(S) ...");
   for(const f of files){const r=await fetch('/api/upload',{method:'POST',headers:{'X-Token':TOKEN,'X-Filename':encodeURIComponent(f.name)},body:await f.arrayBuffer()});
     if(r.ok){all.push(...(await r.json()).findings)}}
-  run.disabled=false;render({findings:all,overall:worstOf(all)});
+  run.disabled=false;render({findings:all,overall:worstOf(all)});showRuns();
 });
+async function api(path,body){const r=await fetch(path,{method:'POST',headers:{'X-Token':TOKEN,'Content-Type':'application/json'},body:JSON.stringify(body||{})});if(!r.ok)throw new Error(r.status+' '+await r.text());return r.json()}
+function histTable(rows,cols,onclick){const h=document.getElementById('hist');
+  h.innerHTML='<table><tr>'+cols.map(c=>'<th>'+esc(c[0])+'</th>').join('')+'</tr>'+rows.map(r=>'<tr class="click" data-id="'+esc(r.id||r.run_id)+'">'+cols.map(c=>'<td class="'+(c[2]||'')+'">'+(c[1](r))+'</td>').join('')+'</tr>').join('')+'</table>';
+  h.querySelectorAll('tr.click').forEach(tr=>tr.onclick=()=>onclick(+tr.dataset.id))}
+const V=v=>v?`<span class="v v-${esc(v)}" style="animation:none">${esc(v)}</span>`:'—';
+async function showRuns(){try{const rows=await api('/api/history',{limit:40});
+  histTable(rows,[['ID',r=>r.id],['Idő',r=>esc(r.ts.replace('T',' ')),'loc'],['Parancs',r=>esc(r.command)],['Verdikt',r=>V(r.overall)],['Vuln',r=>r.n_vulnerable],['Weak',r=>r.n_weak],['Célok',r=>esc(r.targets.join(' ')),'loc']],loadRun)}catch(e){type('MOTHER: '+e)}}
+async function showInv(){try{const rows=await api('/api/inventory',{});
+  histTable(rows,[['Cél',r=>esc(r.target),'loc'],['Legutóbbi verdikt',r=>V(r.overall)],['Utolsó futás',r=>esc(r.ts.replace('T',' ')),'loc'],['Run',r=>r.run_id],['Találat',r=>r.n_findings]],loadRun)}catch(e){type('MOTHER: '+e)}}
+async function loadRun(id){try{const d=await api('/api/run_get',{id});render(d);type(`MOTHER: RUN ${id} RECALLED FROM ARCHIVE · ${d.findings.length} FINDINGS`);window.scrollTo({top:document.querySelector('#log').offsetTop-80,behavior:'smooth'})}catch(e){type('MOTHER: '+e)}}
+document.getElementById('hist-runs').onclick=showRuns;document.getElementById('hist-inv').onclick=showInv;
+async function exportAs(fmt,a){const r=await fetch('/api/export?format='+fmt,{method:'POST',headers:{'X-Token':TOKEN},body:'{}'});const b=await r.blob();a.href=URL.createObjectURL(b);}
+document.getElementById('exp-csv').addEventListener('click',async function(e){if(this.dataset.ready){this.dataset.ready='';return}e.preventDefault();await exportAs('csv',this);this.dataset.ready='1';this.click()});
+document.getElementById('exp-json').addEventListener('click',async function(e){if(this.dataset.ready){this.dataset.ready='';return}e.preventDefault();await exportAs('json',this);this.dataset.ready='1';this.click()});
+api('/api/history',{limit:0}).then(()=>{}).catch(()=>{});document.getElementById('dbpath').textContent="__DBPATH__";showRuns();
 drop.onclick=()=>{const i=document.createElement('input');i.type='file';i.multiple=true;i.onchange=()=>drop.dispatchEvent(new DragEvent('drop',{dataTransfer:(()=>{const d=new DataTransfer();[...i.files].forEach(f=>d.items.add(f));return d})()}));i.click()};
 </script></body></html>
 """
@@ -203,6 +232,10 @@ def run_command(cmd: str, targets: List[str], timeout: float = 5.0) -> List[Find
         from .sshprobe import probe_ssh
         for t in targets:
             findings.extend(probe_ssh(t, timeout))
+    elif cmd == "web":
+        from .webprobe import probe_web
+        for t in targets:
+            findings.extend(probe_web(t, timeout))
     else:
         raise ValueError("unknown command")
     return findings
@@ -227,7 +260,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path.split("?")[0] != "/":
             return self._send(404, b"not found", "text/plain")
-        page = HTML.replace("__TOKEN__", TOKEN).replace("__VERSION__", __version__).replace("__LOGO__", LOGO_SVG)
+        page = (HTML.replace("__TOKEN__", TOKEN).replace("__VERSION__", __version__).replace("__LOGO__", LOGO_SVG)
+                .replace("__DBPATH__", self.server.store.path.replace("\\", "/") if self.server.store else "off"))
         self._send(200, page.encode(), "text/html")
 
     def do_POST(self):
@@ -237,17 +271,39 @@ class Handler(BaseHTTPRequestHandler):
         if length > 256 * 1024 * 1024:
             return self._send(413, b"too large", "text/plain")
         body = self.rfile.read(length)
+        st = self.server.store
+        path = self.path.split("?")[0]
         try:
-            if self.path == "/api/run":
+            if path == "/api/run":
                 req = json.loads(body.decode())
                 targets = [str(t) for t in req.get("targets", [])][:50]
-                findings = run_command(str(req.get("cmd", "")), targets, self.server.timeout)
-            elif self.path == "/api/upload":
+                cmd = str(req.get("cmd", ""))
+                findings = run_command(cmd, targets, self.server.timeout)
+                if st:
+                    with self.server.lock:
+                        st.save_run(cmd, targets, findings)
+            elif path == "/api/history":
+                req = json.loads(body.decode() or "{}")
+                rows = st.runs(int(req.get("limit", 40)) or 40, req.get("target")) if st else []
+                return self._send(200, json.dumps(rows).encode())
+            elif path == "/api/inventory":
+                return self._send(200, json.dumps(st.latest_per_target() if st else []).encode())
+            elif path == "/api/run_get":
+                req = json.loads(body.decode())
+                findings = st.findings(int(req.get("id", 0))) if st else []
+            elif path == "/api/export":
+                fmt = "json" if "format=json" in self.path else "csv"
+                data = st.export(fmt) if st else ""
+                return self._send(200, data.encode("utf-8"), "application/json" if fmt == "json" else "text/csv")
+            elif path == "/api/upload":
                 from urllib.parse import unquote
                 from .formats import analyze_bytes
                 from .knowledge import Verdict
                 name = os.path.basename(unquote(self.headers.get("X-Filename", "upload")))
                 findings = analyze_bytes(name, body) or [Finding.info(name, "file", "format not recognised as a cryptographic container", Verdict.UNKNOWN)]
+                if st:
+                    with self.server.lock:
+                        st.save_run("upload", [name], findings)
             else:
                 return self._send(404, b"not found", "text/plain")
         except ValueError as e:
@@ -256,7 +312,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def serve(port: int = 8765, open_browser: bool = True, timeout: float = 5.0, verbose: bool = False,
-          port_explicit: bool = False) -> int:
+          port_explicit: bool = False, db_path=None, save: bool = True) -> int:
     try:
         httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     except OSError as e:
@@ -268,6 +324,15 @@ def serve(port: int = 8765, open_browser: bool = True, timeout: float = 5.0, ver
     httpd.timeout_probe = timeout
     httpd.timeout = timeout
     httpd.verbose = verbose
+    httpd.lock = threading.Lock()
+    httpd.store = None
+    if save:
+        try:
+            from .store import Store
+            httpd.store = Store(db_path)
+            print("pqcheck gui: history database %s" % httpd.store.path)
+        except Exception as e:
+            print("pqcheck gui: history disabled (%s)" % e, file=sys.stderr)
     url = "http://127.0.0.1:%d/" % httpd.server_address[1]
     print("pqcheck gui: %s  (Ctrl-C to stop)" % url)
     if open_browser:

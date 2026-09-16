@@ -220,3 +220,54 @@ class ExitCodeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StoreTests(unittest.TestCase):
+    def test_roundtrip_and_export(self):
+        import tempfile
+        from pqcheck.store import Store
+        with tempfile.TemporaryDirectory() as d:
+            st = Store(os.path.join(d, "h.db"))
+            f = analyze_file(os.path.join(FX, "rsa2048.crt"))
+            rid = st.save_run("file", ["rsa2048.crt"], f)
+            self.assertEqual(rid, 1)
+            runs = st.runs()
+            self.assertEqual(runs[0]["overall"], "QUANTUM_VULNERABLE")
+            self.assertEqual(runs[0]["targets"], ["rsa2048.crt"])
+            back = st.findings(rid)
+            self.assertEqual(len(back), len(f))
+            self.assertEqual(back[0].verdict, f[0].verdict)
+            inv = st.latest_per_target()
+            self.assertEqual(inv[0]["overall"], "QUANTUM_VULNERABLE")
+            csv_text = st.export("csv")
+            self.assertIn("run_id,ts,command", csv_text.splitlines()[0])
+            self.assertEqual(len(csv_text.strip().splitlines()), len(f) + 1)
+            js = __import__("json").loads(st.export("json", rid))
+            self.assertEqual(len(js), len(f))
+            st.delete_run(rid)
+            self.assertEqual(st.runs(), [])
+            st.close()
+
+
+class WebProbeTests(unittest.TestCase):
+    def test_site_heuristic(self):
+        from pqcheck.webprobe import _site
+        self.assertEqual(_site("static.yettel.hu"), "yettel.hu")
+        self.assertEqual(_site("www.yettel.hu"), "yettel.hu")
+        self.assertEqual(_site("a.b.example.co.uk"), "example.co.uk")
+        self.assertNotEqual(_site("cdn.jsdelivr.net"), _site("www.yettel.hu"))
+
+    def test_suite_families(self):
+        from pqcheck.webprobe import FS_SUITES, STATIC_RSA_SUITES, WEAK_SUITES, SUITES
+        self.assertIn(0xC030, FS_SUITES)
+        self.assertIn(0x009D, STATIC_RSA_SUITES)
+        self.assertIn(0x000A, WEAK_SUITES)
+        self.assertFalse(set(FS_SUITES) & set(STATIC_RSA_SUITES))
+        self.assertTrue(all(c in SUITES for c in FS_SUITES + STATIC_RSA_SUITES + WEAK_SUITES))
+
+    def test_legacy_client_hello(self):
+        ch = build_client_hello("example.com", [23], versions=(0x0303,), suites=(0xC030, 0x009D))
+        self.assertEqual(ch[:3], b"\x16\x03\x01")
+        self.assertEqual(ch[9:11], b"\x03\x03")          # legacy_version inside ClientHello
+        self.assertNotIn(struct.pack(">HH", 43, 5), ch)   # no supported_versions extension
+        self.assertNotIn(struct.pack(">HH", 51, 0), ch)   # no key_share extension

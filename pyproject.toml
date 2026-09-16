@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pqcheck"
-version = "0.1.1"
+version = "0.2.0"
 description = "Quantum-readiness inventory: grade algorithms found in files, code, TLS and SSH endpoints"
 requires-python = ">=3.9"
 license = {text = "MIT"}
