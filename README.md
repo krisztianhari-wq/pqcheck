@@ -32,13 +32,24 @@ python3 -m pqcheck --json tls example.com > report.json
 python3 -m pqcheck --fail-on weak scan .        # CI: exit 1 WEAK-nél, 2 VULNERABLE-nél
 ```
 
+## Grafikus felület
+
+```bash
+python3 -m pqcheck gui          # megnyitja: http://127.0.0.1:8765/
+```
+
+Helyi webes felület Yettel-arculattal, a Nostromo/MU-TH-UR terminálok stílusában (lime "foszfor" navy CRT-n,
+scanline, monospace). Fájl-útvonal, könyvtár, TLS/SSH host megadható, titkosított fájlok drag&drop-pal is
+elemezhetők; a fájl nem hagyja el a gépet. A szerver csak a 127.0.0.1-en hallgat, és minden API-hívás
+oldalba ágyazott véletlen tokent igényel, így más weboldal nem tudja meghívni.
+
 ## Futtatható változatok
 
 Három forma, választhatsz a célgép szerint:
 
 | Forma | Mit igényel | Hogyan |
 |---|---|---|
-| Natív bináris (`pqcheck`, `pqcheck.exe`) | semmit | a [Releases](https://github.com/krisztianhari-wq/pqcheck/releases) oldalról: Linux x86_64, macOS arm64/x86_64, Windows x86_64 |
+| Natív bináris (`pqcheck`, `pqcheck.exe`) | semmit | a [Releases](https://github.com/krisztianhari-wq/pqcheck/releases) oldalról: Linux x86_64, macOS arm64, Windows x86_64 |
 | Egyfájlos `pqcheck.pyz` | Python 3.9+ | `sh build_pyz.sh`, majd `./dist/pqcheck.pyz tls example.com` (vagy `python3 pqcheck.pyz ...`) |
 | Forrásból | Python 3.9+ | `python3 -m pqcheck ...` vagy `pip install -e .` → `pqcheck ...` |
 

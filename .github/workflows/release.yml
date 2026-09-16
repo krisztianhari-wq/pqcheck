@@ -11,8 +11,8 @@ jobs:
   pyz:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: sh build_pyz.sh
@@ -29,14 +29,12 @@ jobs:
             asset: pqcheck-linux-x86_64
           - os: macos-latest
             asset: pqcheck-macos-arm64
-          - os: macos-13
-            asset: pqcheck-macos-x86_64
           - os: windows-latest
             asset: pqcheck-windows-x86_64.exe
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install pyinstaller
