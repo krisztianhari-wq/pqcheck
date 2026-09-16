@@ -271,3 +271,15 @@ class WebProbeTests(unittest.TestCase):
         self.assertEqual(ch[9:11], b"\x03\x03")          # legacy_version inside ClientHello
         self.assertNotIn(struct.pack(">HH", 43, 5), ch)   # no supported_versions extension
         self.assertNotIn(struct.pack(">HH", 51, 0), ch)   # no key_share extension
+
+
+class GuiDetectTests(unittest.TestCase):
+    def test_detect(self):
+        from pqcheck.gui import detect_command
+        self.assertEqual(detect_command("file", "https://www.cetin.hu/"), "web")
+        self.assertEqual(detect_command("file", "cetin.hu:443"), "tls")
+        self.assertEqual(detect_command("file", "cetin.hu"), "tls")
+        self.assertEqual(detect_command("file", "bastion.example.com:22"), "ssh")
+        self.assertEqual(detect_command("file", os.path.join(FX, "rsa2048.crt")), "file")
+        self.assertEqual(detect_command("file", "missing.example.pem"), "file")
+        self.assertEqual(detect_command("tls", "anything"), "tls")

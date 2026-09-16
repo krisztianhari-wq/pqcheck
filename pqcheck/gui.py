@@ -176,6 +176,8 @@ async function call(path,body,headers){
 run.onclick=()=>{if(run.disabled)return;const t=target.value.trim();if(!t){type("MOTHER: SPECIFY TARGET");return}
   call('/api/run',JSON.stringify({cmd:cmd.value,targets:t.split(/\s+/)}),{'Content-Type':'application/json'})};
 document.getElementById('form').addEventListener('submit',e=>{e.preventDefault();run.onclick()});
+target.addEventListener('input',()=>{const t=target.value.trim();if(!t)return;
+  if(/^https?:\/\//i.test(t)){cmd.value='web'}else if(/^[\w.-]+\.[a-z]{2,}(:\d+)?(\s|$)/i.test(t)&&!/[\/\\]/.test(t)&&['file','scan'].includes(cmd.value)){cmd.value=/:22\b/.test(t)?'ssh':'tls'}});
 target.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();run.onclick()}});
 ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over')}));
 ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over')}));
@@ -214,8 +216,32 @@ def _serialize(findings: List[Finding]) -> bytes:
     return json.dumps(data).encode()
 
 
+HOST_RE = __import__("re").compile(r"^[A-Za-z0-9.-]+\.[A-Za-z]{2,}(:\d{1,5})?$")
+
+
+def detect_command(cmd: str, target: str) -> str:
+    """If a file/scan target is clearly a URL or hostname that does not exist on disk, reroute it."""
+    if cmd not in ("file", "scan"):
+        return cmd
+    t = target.strip()
+    if os.path.exists(os.path.expanduser(t)):
+        return cmd
+    if t.lower().startswith(("http://", "https://")):
+        return "web"
+    if HOST_RE.match(t) and not t.endswith((".pem", ".crt", ".key", ".p12", ".pfx", ".gpg", ".asc", ".zip", ".7z", ".pdf", ".json")):
+        return "ssh" if t.endswith(":22") else "tls"
+    return cmd
+
+
 def run_command(cmd: str, targets: List[str], timeout: float = 5.0) -> List[Finding]:
     findings = []
+    if targets and cmd in ("file", "scan"):
+        detected = {detect_command(cmd, t) for t in targets}
+        if len(detected) == 1 and detected != {cmd}:
+            new = detected.pop()
+            findings.append(Finding.info(", ".join(targets), "mode", "input looks like a %s target, switched from %s to %s automatically" % (
+                "URL" if new == "web" else "host", cmd.upper(), new.upper())))
+            cmd = new
     if cmd == "file":
         from .formats import analyze_file
         for t in targets:
