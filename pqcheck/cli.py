@@ -1,5 +1,6 @@
 """pqcheck command line."""
 import argparse
+import json
 import sys
 
 from . import __version__
@@ -15,6 +16,8 @@ def main(argv=None):
     ap.add_argument("--timeout", type=float, default=5.0, help="network timeout in seconds")
     ap.add_argument("--fail-on", choices=["vulnerable", "weak", "never"], default="vulnerable",
                     help="exit non-zero when the overall verdict is at least this bad (default: vulnerable)")
+    ap.add_argument("--no-save", action="store_true", help="do not record this run in the history database")
+    ap.add_argument("--db", default=None, help="history database path (default: $PQCHECK_DB or ~/.pqcheck/history.db)")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("file", help="analyse cryptographic container files (PEM/DER, PGP, SSH keys, age, ZIP, 7z, LUKS, KDBX, PDF, JWT/JWK)")
@@ -30,6 +33,21 @@ def main(argv=None):
     p = sub.add_parser("ssh", help="read SSH server KEXINIT and grade kex/hostkey/cipher/MAC (host[:port], default 22)")
     p.add_argument("hosts", nargs="+")
 
+    p = sub.add_parser("web", help="check a website: TLS versions, forward secrecy, PQC groups, certificate chain, HSTS, third-party hosts")
+    p.add_argument("urls", nargs="+")
+
+    p = sub.add_parser("history", help="list recorded runs (or show one with --show ID)")
+    p.add_argument("--limit", type=int, default=30)
+    p.add_argument("--target", help="filter runs by target substring")
+    p.add_argument("--show", type=int, metavar="ID", help="print the findings of one run")
+    p.add_argument("--inventory", action="store_true", help="newest verdict per target")
+    p.add_argument("--delete", type=int, metavar="ID", help="delete one run")
+
+    p = sub.add_parser("export", help="export recorded findings as CSV (default) or JSON")
+    p.add_argument("--format", choices=["csv", "json"], default="csv")
+    p.add_argument("--run", type=int, metavar="ID", help="only this run")
+    p.add_argument("-o", "--output", help="write to file instead of stdout")
+
     p = sub.add_parser("gui", help="open the local web interface (127.0.0.1 only)")
     p.add_argument("--port", type=int, default=None, help="port (default 8765, falls back to a free port; 0 = random)")
     p.add_argument("--no-browser", action="store_true")
@@ -39,30 +57,96 @@ def main(argv=None):
     if args.cmd == "gui":
         from .gui import serve
         return serve(8765 if args.port is None else args.port, not args.no_browser, args.timeout, args.verbose,
-                     port_explicit=args.port is not None)
+                     port_explicit=args.port is not None, db_path=args.db)
+    if args.cmd in ("history", "export"):
+        from .store import Store
+        st = Store(args.db)
+        try:
+            if args.cmd == "export":
+                data = st.export(args.format, args.run)
+                if args.output:
+                    with open(args.output, "w", encoding="utf-8") as fh:
+                        fh.write(data)
+                    print("wrote %s" % args.output)
+                else:
+                    sys.stdout.write(data)
+                return 0
+            if args.delete:
+                st.delete_run(args.delete)
+                print("deleted run %d" % args.delete)
+                return 0
+            if args.show:
+                findings = st.findings(args.show)
+                if not findings:
+                    print("no such run")
+                    return 1
+                print(render_json(findings) if args.json else render_text(findings, color=sys.stdout.isatty() and not args.no_color))
+                return 0
+            if args.inventory:
+                rows = st.latest_per_target()
+                if args.json:
+                    print(json.dumps(rows, indent=2, ensure_ascii=False))
+                else:
+                    for r in rows:
+                        print("%-20s %-19s run %-5d %s" % (r["overall"], r["ts"], r["run_id"], r["target"]))
+                return 0
+            rows = st.runs(args.limit, args.target)
+            if args.json:
+                print(json.dumps(rows, indent=2, ensure_ascii=False))
+            else:
+                print("%-5s %-19s %-8s %-20s %-5s %-5s %s" % ("ID", "TIME", "CMD", "OVERALL", "VULN", "WEAK", "TARGETS"))
+                for r in rows:
+                    print("%-5d %-19s %-8s %-20s %-5d %-5d %s" % (r["id"], r["ts"], r["command"], r["overall"] or "-",
+                                                                 r["n_vulnerable"], r["n_weak"], " ".join(r["targets"])[:70]))
+            return 0
+        finally:
+            st.close()
     findings = []
+    targets = []
     if args.cmd == "file":
         from .formats import analyze_file
+        targets = args.paths
         for pth in args.paths:
             findings.extend(analyze_file(pth))
+    elif args.cmd == "web":
+        from .webprobe import probe_web
+        targets = args.urls
+        for u in args.urls:
+            findings.extend(probe_web(u, args.timeout))
     elif args.cmd == "scan":
         from .codescan import scan_path
+        targets = args.paths
         for pth in args.paths:
             findings.extend(scan_path(pth, include_code=not args.no_code))
     elif args.cmd == "tls":
         from .tlsprobe import probe_tls
+        targets = args.hosts
         for h in args.hosts:
             findings.extend(probe_tls(h, args.timeout))
     elif args.cmd == "ssh":
         from .sshprobe import probe_ssh
+        targets = args.hosts
         for h in args.hosts:
             findings.extend(probe_ssh(h, args.timeout))
 
+    if not args.no_save:
+        try:
+            from .store import Store
+            st = Store(args.db)
+            run_id = st.save_run(args.cmd, targets, findings)
+            st.close()
+        except Exception as e:  # history must never break a scan
+            print("warning: could not save history: %s" % e, file=sys.stderr)
+            run_id = None
+    else:
+        run_id = None
     if args.json:
         print(render_json(findings))
     else:
         color = sys.stdout.isatty() and not args.no_color
         print(render_text(findings, color=color))
+        if run_id:
+            print("Saved as run %d (pqcheck history --show %d)" % (run_id, run_id))
     return exit_code(findings, args.fail_on)
 
 

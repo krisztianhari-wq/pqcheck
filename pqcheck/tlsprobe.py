@@ -25,10 +25,17 @@ def _ext(t, body):
     return struct.pack(">HH", t, len(body)) + body
 
 
-def build_client_hello(sni: str, groups: List[int]) -> bytes:
-    suites = b"".join(struct.pack(">H", s) for s in (0x1301, 0x1302, 0x1303, 0xC02C, 0xC030, 0xC02B, 0xC02F, 0x009D))
-    sigalgs = b"".join(struct.pack(">H", s) for s in (0x0403, 0x0503, 0x0603, 0x0804, 0x0805, 0x0806,
-                                                       0x0401, 0x0501, 0x0601, 0x0807, 0x0808, 0x0904, 0x0905, 0x0906))
+DEFAULT_SUITES = (0x1301, 0x1302, 0x1303, 0xC02C, 0xC030, 0xC02B, 0xC02F, 0x009D)
+DEFAULT_SIGALGS = (0x0403, 0x0503, 0x0603, 0x0804, 0x0805, 0x0806, 0x0401, 0x0501, 0x0601, 0x0807, 0x0808, 0x0904, 0x0905, 0x0906)
+
+
+def build_client_hello(sni: str, groups: List[int], versions=(0x0304, 0x0303), suites=DEFAULT_SUITES,
+                       empty_key_share: bool = True) -> bytes:
+    """TLS ClientHello. With 0x0304 in versions a supported_versions extension is sent (TLS 1.3 style);
+    otherwise a legacy hello whose record/handshake version is max(versions), so TLS 1.0-1.2 support
+    can be probed individually."""
+    suites_b = b"".join(struct.pack(">H", s) for s in suites)
+    sigalgs = b"".join(struct.pack(">H", s) for s in DEFAULT_SIGALGS)
     grp = b"".join(struct.pack(">H", g) for g in groups)
     host = sni.encode("idna")
     exts = b""
@@ -36,14 +43,20 @@ def build_client_hello(sni: str, groups: List[int]) -> bytes:
     exts += _ext(10, struct.pack(">H", len(grp)) + grp)
     exts += _ext(11, b"\x01\x00")
     exts += _ext(13, struct.pack(">H", len(sigalgs)) + sigalgs)
-    exts += _ext(43, b"\x04\x03\x04\x03\x03")
-    exts += _ext(45, b"\x01\x01")
-    exts += _ext(51, b"\x00\x00")   # empty client_shares -> request HRR
-    body = b"\x03\x03" + os.urandom(32) + b"\x20" + os.urandom(32)
-    body += struct.pack(">H", len(suites)) + suites + b"\x01\x00"
+    tls13 = 0x0304 in versions
+    if tls13:
+        vers = b"".join(struct.pack(">H", v) for v in versions)
+        exts += _ext(43, bytes([len(vers)]) + vers)
+        exts += _ext(45, b"\x01\x01")
+        if empty_key_share:
+            exts += _ext(51, b"\x00\x00")   # empty client_shares -> request HRR
+    legacy = 0x0303 if tls13 else max(versions)
+    body = struct.pack(">H", legacy) + os.urandom(32) + b"\x20" + os.urandom(32)
+    body += struct.pack(">H", len(suites_b)) + suites_b + b"\x01\x00"
     body += struct.pack(">H", len(exts)) + exts
     hs = b"\x01" + struct.pack(">I", len(body))[1:] + body
-    return b"\x16\x03\x01" + struct.pack(">H", len(hs)) + hs
+    rec_ver = 0x0301 if tls13 else min(legacy, 0x0301) if legacy == 0x0301 else 0x0301
+    return b"\x16" + struct.pack(">H", rec_ver) + struct.pack(">H", len(hs)) + hs
 
 
 def _recv_exact(sock, n):
@@ -99,6 +112,56 @@ def probe_groups(host: str, port: int, groups: List[int], timeout: float = 5.0) 
         return "error", None, "timeout"
     except (OSError, ConnectionError, struct.error, IndexError) as ex:
         return "error", None, str(ex)
+
+
+def legacy_handshake(host: str, port: int, versions, suites, timeout: float = 5.0):
+    """TLS <=1.2 ClientHello; read ServerHello (+Certificate, which is still plaintext there).
+    Returns dict(status=ok|alert|error, version, cipher, certs=[der,...], detail)."""
+    try:
+        with socket.create_connection((host, port), timeout=timeout) as s:
+            s.sendall(build_client_hello(host, TLS_CLASSICAL_PROBE_GROUPS, versions=versions, suites=suites))
+            hs_buf = b""
+            result = {"status": "ok", "version": None, "cipher": None, "certs": [], "detail": ""}
+            for _ in range(12):
+                typ, rec = _read_record(s)
+                if typ == 0x15:
+                    if result["version"] is None:
+                        return {"status": "alert", "version": None, "cipher": None, "certs": [],
+                                "detail": ALERTS.get(rec[1], "alert %d" % rec[1]) if len(rec) >= 2 else "alert"}
+                    break
+                if typ != 0x16:
+                    break
+                hs_buf += rec
+                done = False
+                while len(hs_buf) >= 4:
+                    mtype = hs_buf[0]
+                    mlen = int.from_bytes(hs_buf[1:4], "big")
+                    if len(hs_buf) < 4 + mlen:
+                        break
+                    msg = hs_buf[4:4 + mlen]
+                    hs_buf = hs_buf[4 + mlen:]
+                    if mtype == 2:
+                        result["version"] = struct.unpack(">H", msg[0:2])[0]
+                        p = 34
+                        sidl = msg[p]; p += 1 + sidl
+                        result["cipher"] = struct.unpack(">H", msg[p:p + 2])[0]
+                    elif mtype == 11:
+                        total = int.from_bytes(msg[0:3], "big")
+                        p = 3
+                        while p + 3 <= 3 + total and p + 3 <= len(msg):
+                            cl = int.from_bytes(msg[p:p + 3], "big")
+                            result["certs"].append(msg[p + 3:p + 3 + cl])
+                            p += 3 + cl
+                        done = True
+                    elif mtype == 14:
+                        done = True
+                if done or result["version"] == 0x0304:
+                    break
+            return result
+    except socket.timeout:
+        return {"status": "error", "version": None, "cipher": None, "certs": [], "detail": "timeout"}
+    except (OSError, ConnectionError, struct.error, IndexError) as ex:
+        return {"status": "error", "version": None, "cipher": None, "certs": [], "detail": str(ex)}
 
 
 def fetch_cert(host: str, port: int, timeout: float = 5.0) -> Optional[bytes]:
