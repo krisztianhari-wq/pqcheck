@@ -157,11 +157,11 @@ def analyze_der(target: str, data: bytes, label: str = "DER") -> Optional[List[F
         ints = nodes[0].children
         if len(ints) >= 8:
             add("RSA", label, bits=ints[1].int_bits(), role="private key (PKCS#1)")
+        elif "DH" in label.upper() and len(ints) in (2, 3, 4, 5):
+            # PKCS#3 {p, g[, l]} or X9.42 {p, g, q[, j, validation]}
+            add("DH", label, bits=ints[0].int_bits(), role="parameters")
         elif len(ints) == 2:
-            if label.startswith("DH"):
-                add("DH", label, bits=ints[0].int_bits(), role="parameters")
-            else:
-                add("RSA", label, bits=ints[0].int_bits(), role="public key (PKCS#1)")
+            add("RSA", label, bits=ints[0].int_bits(), role="public key (PKCS#1)")
         elif len(ints) == 3 and label.startswith("DSA"):
             add("DSA", label, bits=ints[0].int_bits(), role="parameters")
     if structs:
@@ -172,7 +172,7 @@ def analyze_der(target: str, data: bytes, label: str = "DER") -> Optional[List[F
 
 
 # ============================================================ PEM ==========
-PEM_RE = re.compile(rb"-----BEGIN ([A-Z0-9 ]+)-----\r?\n(.*?)-----END \1-----", re.S)
+PEM_RE = re.compile(rb"-----BEGIN ([A-Z0-9 .#-]+)-----\r?\n(.*?)-----END \1-----", re.S)
 
 
 def analyze_pem(target: str, data: bytes) -> Optional[List[Finding]]:
