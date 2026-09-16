@@ -14,8 +14,8 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python: ["3.9", "3.12"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
       - name: Generate fixtures
@@ -32,7 +32,15 @@ jobs:
           cat gen.log
       - name: Run tests
         if: runner.os != 'Windows'
-        run: python -m unittest discover -s tests -v
+        shell: bash
+        run: |
+          set +e
+          python -m unittest discover -s tests -v > test.log 2>&1
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            echo "::error title=tests failed::$(grep -E '^(FAIL|ERROR):|Error:|assert' test.log | head -n 12 | cut -c1-300 | tr '\n' ' | ')"
+          fi
+          cat test.log; exit $rc
       - name: Smoke test (Windows, no fixture toolchain)
         if: runner.os == 'Windows'
         run: |
