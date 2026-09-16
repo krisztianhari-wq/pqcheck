@@ -18,7 +18,7 @@ def main(argv=None):
                     help="exit non-zero when the overall verdict is at least this bad (default: vulnerable)")
     ap.add_argument("--no-save", action="store_true", help="do not record this run in the history database")
     ap.add_argument("--db", default=None, help="history database path (default: $PQCHECK_DB or ~/.pqcheck/history.db)")
-    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub = ap.add_subparsers(dest="cmd", required=True, metavar="{file,scan,tls,ssh,web,history,export,gui}")
 
     p = sub.add_parser("file", help="analyse cryptographic container files (PEM/DER, PGP, SSH keys, age, ZIP, 7z, LUKS, KDBX, PDF, JWT/JWK)")
     p.add_argument("paths", nargs="+")
@@ -53,6 +53,9 @@ def main(argv=None):
     p.add_argument("--no-browser", action="store_true")
     p.add_argument("--verbose", action="store_true", help="log HTTP requests")
 
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if not argv or (len(argv) == 1 and argv[0].startswith("-psn_")):   # double-clicked app bundle: no args (macOS adds -psn_)
+        argv = ["gui"]
     args = ap.parse_args(argv)
     if args.cmd == "gui":
         from .gui import serve

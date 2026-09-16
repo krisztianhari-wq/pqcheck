@@ -27,7 +27,7 @@ LOGO_SVG = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="205 203 967 274" c
             '<path d="M1137.86,443.56c0-18.49,15.53-34,33.65-34a34.4,34.4,0,0,1,34,34c0,18.11-15.52,33.64-34,33.64C1153.39,477.2,1137.86,461.67,1137.86,443.56Z"/></g></svg>')
 
 HTML = r"""<!DOCTYPE html>
-<html lang="hu"><head><meta charset="utf-8">
+<html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PQCHECK</title>
 <style>
@@ -103,37 +103,37 @@ a{color:var(--ice)}
   <div class="left">__LOGO__<span class="sys">PQCHECK // CRYPTO INVENTORY // v__VERSION__</span></div>
   <span class="cls">Company Internal</span>
 </div>
-<h1>Kvantumbiztonsági leltár<small>Interface 2037 · Ready for inquiry</small></h1>
-<div class="sub">Fájlok, könyvtárak, TLS- és SSH-végpontok kriptográfiai algoritmusai · verdikt a NIST IR 8547 szerint</div>
+<h1>Quantum-readiness inventory<small>Interface 2037 · Ready for inquiry</small></h1>
+<div class="sub">Cryptographic algorithms in files, directories, websites, TLS and SSH endpoints · graded against NIST IR 8547</div>
 
 <div class="panel">
-  <h2>Kérés</h2>
+  <h2>Request</h2>
   <form class="row" id="form" onsubmit="return false">
     <select id="cmd">
-      <option value="file">FILE · fájl(ok)</option>
-      <option value="scan">SCAN · könyvtár</option>
+      <option value="file">FILE · file(s)</option>
+      <option value="scan">SCAN · directory</option>
       <option value="tls">TLS · host[:port]</option>
       <option value="ssh">SSH · host[:port]</option>
       <option value="web">WEB · https://url</option>
     </select>
-    <input id="target" type="text" placeholder="/path/to/file.pem  vagy  example.com:443  (több: szóközzel)" autofocus>
-    <button id="run" type="submit">Futtat</button>
+    <input id="target" type="text" placeholder="/path/to/file.pem   or   example.com:443   or   https://www.example.com  (several: space-separated)" autofocus>
+    <button id="run" type="submit">Run</button>
   </form>
-  <div class="drop" id="drop">Vagy húzd ide a titkosított fájlokat (a fájl csak a helyi gépen marad)</div>
-  <div class="hint">A szerver kizárólag a 127.0.0.1-en fut. TLS/SSH-nál a kulcscsere a "harvest now, decrypt later" kitettség; a tanúsítvány/hostkey aláírása csak kapcsolódáskor számít.</div>
+  <div class="drop" id="drop">Or drop encrypted files here (they never leave this machine)</div>
+  <div class="hint">Server listens on 127.0.0.1 only. For TLS/SSH the key exchange is the "harvest now, decrypt later" exposure; certificate / host-key signatures only matter at connection time.</div>
 </div>
 
 <div class="panel">
-  <h2>Válasz</h2>
+  <h2>Response</h2>
   <div id="log" class="cursor">MOTHER: WAITING FOR INPUT</div>
   <div id="summary"></div>
   <div id="out"></div>
 </div>
 <div class="panel">
-  <h2>Előzmények <span class="hint" style="margin:0 0 0 10px">minden futás mentve: <span id="dbpath" style="text-transform:none;letter-spacing:0"></span></span></h2>
+  <h2>History <span class="hint" style="margin:0 0 0 10px">every run is saved to: <span id="dbpath" style="text-transform:none;letter-spacing:0"></span></span></h2>
   <div class="row" style="margin-bottom:8px">
-    <button id="hist-runs" class="ghost">Futások</button>
-    <button id="hist-inv" class="ghost">Leltár célonként</button>
+    <button id="hist-runs" class="ghost">Runs</button>
+    <button id="hist-inv" class="ghost">Inventory by target</button>
     <a id="exp-csv" class="ghost btn" href="#" download="pqcheck-history.csv">Export CSV</a>
     <a id="exp-json" class="ghost btn" href="#" download="pqcheck-history.json">Export JSON</a>
   </div>
@@ -159,7 +159,7 @@ function render(data){
     const w=head?head.note:worstOf(rows);
     const div=document.createElement('div');div.className='target';
     div.innerHTML=`<div class="head"><span class="name">&gt; ${esc(t)}</span><span class="v v-${esc(worstOf(rows))}">${esc(w)}</span></div>
-    <table><tr><th>Verdikt</th><th>Algoritmus</th><th>Kategória</th><th>Hol</th><th>Megjegyzés</th></tr>`+
+    <table><tr><th>Verdict</th><th>Algorithm</th><th>Category</th><th>Where</th><th>Note</th></tr>`+
     rows.map(f=>`<tr><td><span class="v v-${esc(f.verdict)}">${esc(f.verdict)}</span></td><td class="alg">${esc(f.algorithm)}${f.bits?'-'+f.bits:''}</td><td>${esc(f.category)}</td><td class="loc">${esc(f.location)}</td><td class="note">${esc(f.note||'')}</td></tr>`).join('')+'</table>';
     out.appendChild(div);
   }
@@ -194,9 +194,9 @@ function histTable(rows,cols,onclick){const h=document.getElementById('hist');
   h.querySelectorAll('tr.click').forEach(tr=>tr.onclick=()=>onclick(+tr.dataset.id))}
 const V=v=>v?`<span class="v v-${esc(v)}" style="animation:none">${esc(v)}</span>`:'—';
 async function showRuns(){try{const rows=await api('/api/history',{limit:40});
-  histTable(rows,[['ID',r=>r.id],['Idő',r=>esc(r.ts.replace('T',' ')),'loc'],['Parancs',r=>esc(r.command)],['Verdikt',r=>V(r.overall)],['Vuln',r=>r.n_vulnerable],['Weak',r=>r.n_weak],['Célok',r=>esc(r.targets.join(' ')),'loc']],loadRun)}catch(e){type('MOTHER: '+e)}}
+  histTable(rows,[['ID',r=>r.id],['Time',r=>esc(r.ts.replace('T',' ')),'loc'],['Command',r=>esc(r.command)],['Verdict',r=>V(r.overall)],['Vuln',r=>r.n_vulnerable],['Weak',r=>r.n_weak],['Targets',r=>esc(r.targets.join(' ')),'loc']],loadRun)}catch(e){type('MOTHER: '+e)}}
 async function showInv(){try{const rows=await api('/api/inventory',{});
-  histTable(rows,[['Cél',r=>esc(r.target),'loc'],['Legutóbbi verdikt',r=>V(r.overall)],['Utolsó futás',r=>esc(r.ts.replace('T',' ')),'loc'],['Run',r=>r.run_id],['Találat',r=>r.n_findings]],loadRun)}catch(e){type('MOTHER: '+e)}}
+  histTable(rows,[['Target',r=>esc(r.target),'loc'],['Latest verdict',r=>V(r.overall)],['Last run',r=>esc(r.ts.replace('T',' ')),'loc'],['Run',r=>r.run_id],['Findings',r=>r.n_findings]],loadRun)}catch(e){type('MOTHER: '+e)}}
 async function loadRun(id){try{const d=await api('/api/run_get',{id});render(d);type(`MOTHER: RUN ${id} RECALLED FROM ARCHIVE · ${d.findings.length} FINDINGS`);window.scrollTo({top:document.querySelector('#log').offsetTop-80,behavior:'smooth'})}catch(e){type('MOTHER: '+e)}}
 document.getElementById('hist-runs').onclick=showRuns;document.getElementById('hist-inv').onclick=showInv;
 async function exportAs(fmt,a){const r=await fetch('/api/export?format='+fmt,{method:'POST',headers:{'X-Token':TOKEN},body:'{}'});const b=await r.blob();a.href=URL.createObjectURL(b);}
@@ -360,7 +360,10 @@ def serve(port: int = 8765, open_browser: bool = True, timeout: float = 5.0, ver
         except Exception as e:
             print("pqcheck gui: history disabled (%s)" % e, file=sys.stderr)
     url = "http://127.0.0.1:%d/" % httpd.server_address[1]
-    print("pqcheck gui: %s  (Ctrl-C to stop)" % url)
+    try:
+        print("pqcheck gui: %s  (Ctrl-C to stop)" % url)
+    except Exception:
+        pass   # windowed builds have no stdout
     if open_browser:
         threading.Timer(0.4, lambda: webbrowser.open(url)).start()
     try:

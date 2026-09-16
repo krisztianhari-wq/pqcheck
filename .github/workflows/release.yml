@@ -52,6 +52,21 @@ jobs:
         with:
           name: ${{ matrix.asset }}
           path: dist/${{ matrix.asset }}
+      - name: Build desktop app (double-clickable, opens the GUI)
+        shell: bash
+        run: |
+          sh build_app.sh
+          mkdir -p dist/desktop
+          case "$RUNNER_OS" in
+            macOS)   cp dist/PQCheck-macos.zip dist/desktop/PQCheck-macos-arm64.zip ;;
+            Windows) cp dist/app/PQCheck.exe dist/desktop/PQCheck-windows-x86_64.exe ;;
+            Linux)   cp dist/app/PQCheck dist/desktop/PQCheck-linux-x86_64 ;;
+          esac
+          ls -la dist/desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.asset }}
+          path: dist/desktop/*
 
   release:
     needs: [pyz, binaries]
