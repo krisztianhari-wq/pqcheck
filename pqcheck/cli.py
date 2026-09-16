@@ -31,14 +31,15 @@ def main(argv=None):
     p.add_argument("hosts", nargs="+")
 
     p = sub.add_parser("gui", help="open the local web interface (127.0.0.1 only)")
-    p.add_argument("--port", type=int, default=8765, help="port (0 = random)")
+    p.add_argument("--port", type=int, default=None, help="port (default 8765, falls back to a free port; 0 = random)")
     p.add_argument("--no-browser", action="store_true")
     p.add_argument("--verbose", action="store_true", help="log HTTP requests")
 
     args = ap.parse_args(argv)
     if args.cmd == "gui":
         from .gui import serve
-        return serve(args.port, not args.no_browser, args.timeout, args.verbose)
+        return serve(8765 if args.port is None else args.port, not args.no_browser, args.timeout, args.verbose,
+                     port_explicit=args.port is not None)
     findings = []
     if args.cmd == "file":
         from .formats import analyze_file
