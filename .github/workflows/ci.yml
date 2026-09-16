@@ -20,7 +20,16 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: Generate fixtures
         if: runner.os != 'Windows'
-        run: sh tests/fixtures/generate.sh
+        shell: bash
+        run: |
+          set +e
+          PQ_DEBUG=1 sh tests/fixtures/generate.sh > gen.log 2>&1
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            echo "::error title=fixture generation failed::$(tail -n 8 gen.log | tr '\n' ' | ')"
+            cat gen.log; exit $rc
+          fi
+          cat gen.log
       - name: Run tests
         if: runner.os != 'Windows'
         run: python -m unittest discover -s tests -v
@@ -28,4 +37,4 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           python -m pqcheck --version
-          python -m pqcheck --no-color scan tests/fixtures/sshd_config tests/fixtures/app.py --fail-on never
+          python -m pqcheck --no-color --fail-on never scan tests/fixtures/sshd_config tests/fixtures/app.py
