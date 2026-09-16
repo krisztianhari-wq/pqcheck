@@ -78,9 +78,23 @@ SmartScreen shows this for executables without a code-signing certificate. Click
 **Run anyway**. Some corporate AV policies block unsigned executables entirely; in that case use the
 Python-based `pqcheck.pyz` (`py pqcheck.pyz gui`) or ask IT to allow-list the SHA-256 from `SHA256SUMS.txt`.
 
+## Which release file do I need?
+
+| I want to… | Download | Notes |
+|---|---|---|
+| double-click an app (macOS, Apple Silicon) | `PQCheck-Desktop-macos-arm64.zip` | unzip, drag `PQCheck.app` to Applications; first launch see Gatekeeper section |
+| double-click an app (Windows) | `PQCheck-Desktop-windows-x86_64.exe` | SmartScreen → More info → Run anyway |
+| double-click an app (Linux) | `PQCheck-Desktop-linux-x86_64` | `chmod +x`, run |
+| use the command line | `pqcheck-cli-<os>-<arch>` | e.g. `pqcheck-cli-macos-arm64`, `pqcheck-cli-windows-x86_64.exe` |
+| run with Python (any OS) | `pqcheck-cli-any-python3.pyz` | `python3 pqcheck-cli-any-python3.pyz gui` |
+
+The desktop app and the CLI are the same program; the app just runs `pqcheck gui`. Do not
+double-click the `pqcheck-cli-…` files in Finder / Explorer – they are terminal programs.
+
 ## Command line
 
-Binaries `pqcheck-<os>-<arch>` on Releases, or `python3 -m pqcheck` from source, or `python3 pqcheck.pyz`.
+Binaries `pqcheck-cli-<os>-<arch>` on Releases, or `python3 -m pqcheck` from source, or
+`python3 pqcheck-cli-any-python3.pyz`.
 
 ```bash
 pqcheck file secret.gpg cert.pem bundle.p12 archive.zip
@@ -161,7 +175,7 @@ host keys, ciphers, MACs. Separate verdicts for key exchange and host authentica
 ## Building
 
 ```bash
-sh build_pyz.sh                 # dist/pqcheck.pyz – runs anywhere Python 3.9+ exists
+sh build_pyz.sh                 # dist/pqcheck.pyz (published as pqcheck-cli-any-python3.pyz)
 pip install pyinstaller
 sh build_app.sh                 # desktop app: dist/app/PQCheck.app (macOS), PQCheck.exe (Windows)
 python3 tools/make_icon.py assets/icon_1024.png   # regenerate the icon (pure stdlib)
